@@ -23,17 +23,17 @@ class DegradationPromptModule(nn.Module):
     def forward(self, features: torch.Tensor, degradation: torch.Tensor, mix_weights: torch.Tensor) -> torch.Tensor:
         batch = features.shape[0]
         prompt = features.new_zeros(batch, self.channels)
+        prompts = self.prompts.to(device=features.device, dtype=features.dtype)
 
         for idx, name in enumerate(BASE_DEGRADATIONS):
             mask = degradation == DEGRADATION_TO_INDEX[name]
             if mask.any():
-                prompt[mask] = self.prompts[idx]
+                prompt[mask] = prompts[idx]
 
         mixed_mask = degradation == DEGRADATION_TO_INDEX["mixed"]
         if mixed_mask.any():
             weights = mix_weights[mixed_mask].to(features.device, features.dtype)
-            prompt[mixed_mask] = weights @ self.prompts.to(features.dtype)
+            prompt[mixed_mask] = weights @ prompts
 
         prompt = self.proj(prompt).view(batch, self.channels, 1, 1)
         return features + prompt
-
