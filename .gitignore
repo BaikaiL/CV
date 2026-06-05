@@ -1,0 +1,8 @@
+.venv/
+.idea/
+__pycache__/
+*.py[cod]
+
+# Large local datasets and generated restoration samples.
+data/
+results/
