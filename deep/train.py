@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import time
 from pathlib import Path
 
@@ -32,6 +33,17 @@ def _limit_dataset(dataset, limit: int | None, seed: int) -> Subset | object:
     generator = torch.Generator().manual_seed(seed)
     indices = torch.randperm(len(dataset), generator=generator)[:limit].tolist()
     return Subset(dataset, indices)
+
+
+def _write_history(output_dir: Path, history: list[dict[str, float | int | bool]]) -> None:
+    if not history:
+        return
+    csv_path = output_dir / "metrics_history.csv"
+    fieldnames = ["epoch", "loss", "psnr", "ssim", "validated", "best_psnr"]
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(history)
 
 
 @torch.no_grad()
@@ -127,6 +139,7 @@ def main() -> None:
     best_metrics = {"psnr": 0.0, "ssim": 0.0}
     stale_validations = 0
     global_step = 0
+    history: list[dict[str, float | int | bool]] = []
     for epoch in range(1, args.epochs + 1):
         model.train()
         epoch_loss = 0.0
@@ -172,16 +185,31 @@ def main() -> None:
             "metrics": valid_metrics,
         }
         torch.save(checkpoint, output_dir / "last.pth")
-        if should_validate and valid_metrics["psnr"] > best_psnr + args.min_psnr_gain:
+        improved = should_validate and valid_metrics["psnr"] > best_psnr + args.min_psnr_gain
+        if improved:
             best_psnr = valid_metrics["psnr"]
             best_metrics = valid_metrics
             stale_validations = 0
             torch.save(checkpoint, output_dir / "best.pth")
-        elif should_validate:
+        should_stop = False
+        if should_validate and not improved:
             stale_validations += 1
             if stale_validations >= args.early_stop_patience:
                 print(f"Early stop: PSNR did not improve for {stale_validations} validations.")
-                break
+                should_stop = True
+        history.append(
+            {
+                "epoch": epoch,
+                "loss": avg_loss,
+                "psnr": valid_metrics["psnr"] if should_validate else "",
+                "ssim": valid_metrics["ssim"] if should_validate else "",
+                "validated": should_validate,
+                "best_psnr": best_psnr,
+            }
+        )
+        _write_history(output_dir, history)
+        if should_stop:
+            break
     writer.close()
 
 
