@@ -1,0 +1,23 @@
+# Deep learning restoration project dependencies.
+# The explicit +cu124 pins prevent pip from selecting CPU-only PyTorch wheels.
+#
+# Install in the virtual environment with:
+#   pip install -r requirements.txt
+
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+
+numpy
+pillow
+tqdm
+pyyaml
+einops
+scikit-image
+matplotlib
+pandas
+
+# Optional but useful for experiments and reports.
+lpips
+tensorboard
